@@ -1,3 +1,18 @@
+/*
+ *  Copyright 2019-2020 Zheng Jie
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
 package me.zhengjie.utils;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -24,8 +39,6 @@ public class RedisUtils {
         this.redisTemplate = redisTemplate;
     }
 
-    // =============================common============================
-
     /**
      * 指定缓存失效时间
      * @param key  键
@@ -35,6 +48,24 @@ public class RedisUtils {
         try {
             if (time > 0) {
                 redisTemplate.expire(key, time, TimeUnit.SECONDS);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * 指定缓存失效时间
+     * @param key  键
+     * @param time 时间(秒)
+     * @param timeUnit 单位
+     */
+    public boolean expire(String key, long time, TimeUnit timeUnit) {
+        try {
+            if (time > 0) {
+                redisTemplate.expire(key, time, timeUnit);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -129,12 +160,23 @@ public class RedisUtils {
      * 删除缓存
      * @param key 可以传一个值 或多个
      */
-    public void del(String... key) {
-        if (key != null && key.length > 0) {
-            if (key.length == 1) {
-                redisTemplate.delete(key[0]);
+    public void del(String... keys) {
+        if (keys != null && keys.length > 0) {
+            if (keys.length == 1) {
+                boolean result = redisTemplate.delete(keys[0]);
+                System.out.println("--------------------------------------------");
+                System.out.println(new StringBuilder("删除缓存：").append(keys[0]).append("，结果：").append(result));
+                System.out.println("--------------------------------------------");
             } else {
-                redisTemplate.delete(CollectionUtils.arrayToList(key));
+                Set<Object> keySet = new HashSet<>();
+                for (String key : keys) {
+                    keySet.addAll(redisTemplate.keys(key));
+                }
+                long count = redisTemplate.delete(keySet);
+                System.out.println("--------------------------------------------");
+                System.out.println("成功删除缓存：" + keySet.toString());
+                System.out.println("缓存删除数量：" + count + "个");
+                System.out.println("--------------------------------------------");
             }
         }
     }
@@ -611,5 +653,23 @@ public class RedisUtils {
             e.printStackTrace();
             return 0;
         }
+    }
+
+    /**
+     *
+     * @param prefix 前缀
+     * @param ids id
+     */
+    public void delByKeys(String prefix, Set<Long> ids) {
+        Set<Object> keys = new HashSet<>();
+        for (Long id : ids) {
+            keys.addAll(redisTemplate.keys(new StringBuffer(prefix).append(id).toString()));
+        }
+        long count = redisTemplate.delete(keys);
+        // 此处提示可自行删除
+        System.out.println("--------------------------------------------");
+        System.out.println("成功删除缓存：" + keys.toString());
+        System.out.println("缓存删除数量：" + count + "个");
+        System.out.println("--------------------------------------------");
     }
 }

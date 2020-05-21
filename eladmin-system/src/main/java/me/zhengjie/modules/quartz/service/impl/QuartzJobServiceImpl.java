@@ -1,5 +1,21 @@
+/*
+ *  Copyright 2019-2020 Zheng Jie
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
 package me.zhengjie.modules.quartz.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import me.zhengjie.exception.BadRequestException;
 import me.zhengjie.modules.quartz.domain.QuartzJob;
 import me.zhengjie.modules.quartz.domain.QuartzLog;
@@ -13,14 +29,10 @@ import me.zhengjie.utils.PageUtil;
 import me.zhengjie.utils.QueryHelp;
 import me.zhengjie.utils.ValidationUtil;
 import org.quartz.CronExpression;
-import org.springframework.cache.annotation.CacheConfig;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.*;
@@ -29,25 +41,16 @@ import java.util.*;
  * @author Zheng Jie
  * @date 2019-01-07
  */
+@RequiredArgsConstructor
 @Service(value = "quartzJobService")
-@CacheConfig(cacheNames = "quartzJob")
 @Transactional(propagation = Propagation.SUPPORTS, readOnly = true, rollbackFor = Exception.class)
 public class QuartzJobServiceImpl implements QuartzJobService {
 
     private final QuartzJobRepository quartzJobRepository;
-
     private final QuartzLogRepository quartzLogRepository;
-
     private final QuartzManage quartzManage;
 
-    public QuartzJobServiceImpl(QuartzJobRepository quartzJobRepository, QuartzLogRepository quartzLogRepository, QuartzManage quartzManage) {
-        this.quartzJobRepository = quartzJobRepository;
-        this.quartzLogRepository = quartzLogRepository;
-        this.quartzManage = quartzManage;
-    }
-
     @Override
-    @Cacheable
     public Object queryAll(JobQueryCriteria criteria, Pageable pageable){
         return PageUtil.toPage(quartzJobRepository.findAll((root, criteriaQuery, criteriaBuilder) -> QueryHelp.getPredicate(root,criteria,criteriaBuilder),pageable));
     }
@@ -68,7 +71,6 @@ public class QuartzJobServiceImpl implements QuartzJobService {
     }
 
     @Override
-    @Cacheable(key = "#p0")
     public QuartzJob findById(Long id) {
         QuartzJob quartzJob = quartzJobRepository.findById(id).orElseGet(QuartzJob::new);
         ValidationUtil.isNull(quartzJob.getId(),"QuartzJob","id",id);
@@ -76,24 +78,18 @@ public class QuartzJobServiceImpl implements QuartzJobService {
     }
 
     @Override
-    @CacheEvict(allEntries = true)
     @Transactional(rollbackFor = Exception.class)
-    public QuartzJob create(QuartzJob resources) {
+    public void create(QuartzJob resources) {
         if (!CronExpression.isValidExpression(resources.getCronExpression())){
             throw new BadRequestException("cron表达式格式错误");
         }
         resources = quartzJobRepository.save(resources);
         quartzManage.addJob(resources);
-        return resources;
     }
 
     @Override
-    @CacheEvict(allEntries = true)
     @Transactional(rollbackFor = Exception.class)
     public void update(QuartzJob resources) {
-        if(resources.getId().equals(1L)){
-            throw new BadRequestException("该任务不可操作");
-        }
         if (!CronExpression.isValidExpression(resources.getCronExpression())){
             throw new BadRequestException("cron表达式格式错误");
         }
@@ -102,11 +98,7 @@ public class QuartzJobServiceImpl implements QuartzJobService {
     }
 
     @Override
-    @CacheEvict(allEntries = true)
     public void updateIsPause(QuartzJob quartzJob) {
-        if(quartzJob.getId().equals(1L)){
-            throw new BadRequestException("该任务不可操作");
-        }
         if (quartzJob.getIsPause()) {
             quartzManage.resumeJob(quartzJob);
             quartzJob.setIsPause(false);
@@ -119,20 +111,13 @@ public class QuartzJobServiceImpl implements QuartzJobService {
 
     @Override
     public void execution(QuartzJob quartzJob) {
-        if(quartzJob.getId().equals(1L)){
-            throw new BadRequestException("该任务不可操作");
-        }
         quartzManage.runJobNow(quartzJob);
     }
 
     @Override
-    @CacheEvict(allEntries = true)
     @Transactional(rollbackFor = Exception.class)
     public void delete(Set<Long> ids) {
         for (Long id : ids) {
-            if(id.equals(1L)){
-                throw new BadRequestException("更新访客记录不可删除，你可以在后台代码中取消该限制");
-            }
             QuartzJob quartzJob = findById(id);
             quartzManage.deleteJob(quartzJob);
             quartzJobRepository.delete(quartzJob);
@@ -150,7 +135,7 @@ public class QuartzJobServiceImpl implements QuartzJobService {
             map.put("参数", quartzJob.getParams());
             map.put("表达式", quartzJob.getCronExpression());
             map.put("状态", quartzJob.getIsPause() ? "暂停中" : "运行中");
-            map.put("描述", quartzJob.getRemark());
+            map.put("描述", quartzJob.getDescription());
             map.put("创建日期", quartzJob.getCreateTime());
             list.add(map);
         }

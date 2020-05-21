@@ -1,3 +1,18 @@
+/*
+ *  Copyright 2019-2020 Zheng Jie
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
 package me.zhengjie.modules.system.repository;
 
 import me.zhengjie.modules.system.domain.Role;
@@ -11,7 +26,6 @@ import java.util.Set;
  * @author Zheng Jie
  * @date 2018-12-03
  */
-@SuppressWarnings("all")
 public interface RoleRepository extends JpaRepository<Role, Long>, JpaSpecificationExecutor<Role> {
 
     /**
@@ -22,24 +36,25 @@ public interface RoleRepository extends JpaRepository<Role, Long>, JpaSpecificat
     Role findByName(String name);
 
     /**
+     * 删除多个角色
+     * @param ids /
+     */
+    void deleteAllByIdIn(Set<Long> ids);
+
+    /**
      * 根据用户ID查询
      * @param id 用户ID
-     * @return
+     * @return /
      */
-    Set<Role> findByUsers_Id(Long id);
+    @Query(value = "SELECT r.* FROM sys_role r, sys_users_roles u WHERE " +
+            "r.role_id = u.role_id AND u.user_id = ?1",nativeQuery = true)
+    Set<Role> findByUserId(Long id);
 
     /**
      * 解绑角色菜单
      * @param id 菜单ID
      */
     @Modifying
-    @Query(value = "delete from roles_menus where menu_id = ?1",nativeQuery = true)
+    @Query(value = "delete from sys_roles_menus where menu_id = ?1",nativeQuery = true)
     void untiedMenu(Long id);
-
-    /**
-     * 根据角色权限查询
-     * @param permission /
-     * @return /
-     */
-    Role findByPermission(String permission);
 }
