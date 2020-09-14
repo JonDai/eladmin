@@ -30,7 +30,7 @@ import java.util.*;
 
 /**
  * @author Zheng Jie
- * @website https://docs.auauz.net
+ * @website https://el-admin.vip
  * @description 数据权限服务实现
  * @date 2020-05-07
  **/
@@ -65,7 +65,7 @@ public class DataServiceImpl implements DataService {
                     deptIds.addAll(getCustomize(deptIds, role));
                     break;
                 default:
-                    break;
+                    return new ArrayList<>(deptIds);
             }
         }
         return new ArrayList<>(deptIds);

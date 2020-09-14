@@ -43,7 +43,6 @@ import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletResponse;
@@ -57,7 +56,6 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 @CacheConfig(cacheNames = "qiNiu")
-@Transactional(propagation = Propagation.SUPPORTS, readOnly = true, rollbackFor = Exception.class)
 public class QiNiuServiceImpl implements QiNiuService {
 
     private final QiNiuConfigRepository qiNiuConfigRepository;
@@ -67,14 +65,14 @@ public class QiNiuServiceImpl implements QiNiuService {
     private Long maxSize;
 
     @Override
-    @Cacheable(key = "'id:1'")
+    @Cacheable(key = "'config'")
     public QiniuConfig find() {
         Optional<QiniuConfig> qiniuConfig = qiNiuConfigRepository.findById(1L);
         return qiniuConfig.orElseGet(QiniuConfig::new);
     }
 
     @Override
-    @CachePut(key = "'id:1'")
+    @CachePut(key = "'config'")
     @Transactional(rollbackFor = Exception.class)
     public QiniuConfig config(QiniuConfig qiniuConfig) {
         qiniuConfig.setId(1L);

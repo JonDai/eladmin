@@ -19,6 +19,7 @@ import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import lombok.RequiredArgsConstructor;
 import me.zhengjie.modules.system.domain.Menu;
+import me.zhengjie.modules.system.domain.Role;
 import me.zhengjie.modules.system.domain.User;
 import me.zhengjie.modules.system.domain.vo.MenuMetaVo;
 import me.zhengjie.modules.system.domain.vo.MenuVo;
@@ -37,7 +38,6 @@ import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -51,7 +51,6 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @CacheConfig(cacheNames = "menu")
-@Transactional(propagation = Propagation.SUPPORTS, readOnly = true, rollbackFor = Exception.class)
 public class MenuServiceImpl implements MenuService {
 
     private final MenuRepository menuRepository;
@@ -127,11 +126,8 @@ public class MenuServiceImpl implements MenuService {
         menuRepository.save(resources);
         // 计算子节点数目
         resources.setSubCount(0);
-        if(resources.getPid() != null){
-            // 清理缓存
-            updateSubCnt(resources.getPid());
-        }
-        redisUtils.del("menu::pid:" + (resources.getPid() == null ? 0 : resources.getPid()));
+        // 更新父节点菜单数目
+        updateSubCnt(resources.getPid());
     }
 
     @Override
@@ -141,8 +137,6 @@ public class MenuServiceImpl implements MenuService {
             throw new BadRequestException("上级不能为自己");
         }
         Menu menu = menuRepository.findById(resources.getId()).orElseGet(Menu::new);
-        // 记录旧的父节点ID
-        Long pid = menu.getPid();
         ValidationUtil.isNull(menu.getId(),"Permission","id",resources.getId());
 
         if(resources.getIFrame()){
@@ -160,6 +154,11 @@ public class MenuServiceImpl implements MenuService {
         if(resources.getPid().equals(0L)){
             resources.setPid(null);
         }
+
+        // 记录的父节点ID
+        Long oldPid = menu.getPid();
+        Long newPid = resources.getPid();
+
         if(StringUtils.isNotBlank(resources.getComponentName())){
             menu1 = menuRepository.findByComponentName(resources.getComponentName());
             if(menu1 != null && !menu1.getId().equals(menu.getId())){
@@ -179,15 +178,11 @@ public class MenuServiceImpl implements MenuService {
         menu.setPermission(resources.getPermission());
         menu.setType(resources.getType());
         menuRepository.save(menu);
-        // 计算子节点数目
-        if(resources.getPid() == null){
-            updateSubCnt(pid);
-        } else {
-            pid = resources.getPid();
-            updateSubCnt(resources.getPid());
-        }
+        // 计算父级菜单节点数目
+        updateSubCnt(oldPid);
+        updateSubCnt(newPid);
         // 清理缓存
-        delCaches(resources.getId(), pid);
+        delCaches(resources.getId());
     }
 
     @Override
@@ -208,17 +203,14 @@ public class MenuServiceImpl implements MenuService {
     public void delete(Set<Menu> menuSet) {
         for (Menu menu : menuSet) {
             // 清理缓存
-            delCaches(menu.getId(), menu.getPid());
+            delCaches(menu.getId());
             roleService.untiedMenu(menu.getId());
             menuRepository.deleteById(menu.getId());
-            if(menu.getPid() != null){
-                updateSubCnt(menu.getPid());
-            }
+            updateSubCnt(menu.getPid());
         }
     }
 
     @Override
-    @Cacheable(key = "'pid:' + #p0")
     public List<MenuDto> getMenus(Long pid) {
         List<Menu> menus;
         if(pid != null && !pid.equals(0L)){
@@ -338,19 +330,24 @@ public class MenuServiceImpl implements MenuService {
     }
 
     private void updateSubCnt(Long menuId){
-        int count = menuRepository.countByPid(menuId);
-        menuRepository.updateSubCntById(count, menuId);
+        if(menuId != null){
+            int count = menuRepository.countByPid(menuId);
+            menuRepository.updateSubCntById(count, menuId);
+        }
     }
 
     /**
      * 清理缓存
      * @param id 菜单ID
-     * @param pid 菜单父级ID
      */
-    public void delCaches(Long id, Long pid){
+    public void delCaches(Long id){
         List<User> users = userRepository.findByMenuId(id);
         redisUtils.del("menu::id:" +id);
         redisUtils.delByKeys("menu::user:",users.stream().map(User::getId).collect(Collectors.toSet()));
-        redisUtils.del("menu::pid:" + (pid == null ? 0 : pid));
+        // 清除 Role 缓存
+        List<Role> roles = roleService.findInMenuId(new ArrayList<Long>(){{
+            add(id);
+        }});
+        redisUtils.delByKeys("role::id:",roles.stream().map(Role::getId).collect(Collectors.toSet()));
     }
 }

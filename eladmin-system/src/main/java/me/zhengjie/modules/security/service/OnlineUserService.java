@@ -16,11 +16,12 @@
 package me.zhengjie.modules.security.service;
 
 import lombok.extern.slf4j.Slf4j;
-import me.zhengjie.modules.security.config.SecurityProperties;
+import me.zhengjie.modules.security.config.bean.SecurityProperties;
 import me.zhengjie.modules.security.service.dto.JwtUserDto;
 import me.zhengjie.modules.security.service.dto.OnlineUserDto;
 import me.zhengjie.utils.*;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -58,7 +59,7 @@ public class OnlineUserService {
         try {
             onlineUserDto = new OnlineUserDto(jwtUserDto.getUsername(), jwtUserDto.getUser().getNickName(), dept, browser , ip, address, EncryptUtils.desEncrypt(token), new Date());
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.getMessage(),e);
         }
         redisUtils.set(properties.getOnlineKey() + token, onlineUserDto, properties.getTokenValidityInSeconds()/1000);
     }
@@ -173,4 +174,17 @@ public class OnlineUserService {
         }
     }
 
+    /**
+     * 根据用户名强退用户
+     * @param username /
+     */
+    @Async
+    public void kickOutForUsername(String username) {
+        List<OnlineUserDto> onlineUsers = getAll(username);
+        for (OnlineUserDto onlineUser : onlineUsers) {
+            if (onlineUser.getUserName().equals(username)) {
+                kickOut(onlineUser.getKey());
+            }
+        }
+    }
 }
